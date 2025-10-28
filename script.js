@@ -50,11 +50,17 @@ document.addEventListener('DOMContentLoaded', () => {
   if (IS_DEMO_MODE) {
     markDemoMode();
   }
-  loadTrending();
-  loadNews();
+  // 先初始化所有视觉组件
   initStarsBackground();
   embedBTCChart();
   embedTicker();
+  loadNews();
+  
+  // 延迟加载加密货币数据，确保TradingView组件有足够时间加载
+  setTimeout(() => {
+    loadTrending();
+    console.log('延迟加载加密货币数据，确保TradingView组件已初始化');
+  }, 2000); // 2秒延迟
   // 每60秒刷新热门币（本地/线上均启用）
   setInterval(() => { loadTrending(); }, 60000);
   // 每10秒刷新热门币价格（本地/线上均启用）
@@ -449,13 +455,311 @@ function markDemoMode() {
   header.appendChild(badge);
 }
 
-function getDemoTrending() {
+// 智能模拟数据生成器 - 基于TradingView数据或历史趋势
+function getSmartDemoTrending() {
+  // 基础价格（尽量接近市场水平）
+  const basePrices = {
+    btc: 68000,
+    eth: 3500,
+    sol: 160,
+    bnb: 600
+  };
+  
+  // 从TradingView ticker尝试提取数据
+  // 添加延迟重试机制，确保有足够时间等待TradingView加载完成
+  const tradingViewData = extractDataFromTradingViewWithRetry();
+  
+  // 如果从TradingView获取到数据，使用这些数据
+  if (tradingViewData && Object.keys(tradingViewData).length > 0) {
+    console.log('使用从TradingView提取的数据');
+    return Object.entries(tradingViewData).map(([symbol, data]) => ({
+      id: symbol.toLowerCase(),
+      name: symbol === 'btc' ? 'Bitcoin' : symbol === 'eth' ? 'Ethereum' : symbol === 'sol' ? 'Solana' : 'BNB',
+      symbol: symbol.toUpperCase(),
+      large: `https://assets.coingecko.com/coins/images/${
+        symbol === 'btc' ? '1' : symbol === 'eth' ? '279' : symbol === 'sol' ? '4128' : '825'
+      }/large/${
+        symbol === 'btc' ? 'bitcoin' : symbol === 'eth' ? 'ethereum' : symbol === 'sol' ? 'Solana' : 'bnb-icon2_2x'
+      }.png`,
+      data: {
+        price: data.price,
+        price_change_percentage_24h: { usd: data.change24h }
+      }
+    }));
+  }
+  
+  // 否则生成智能模拟数据（基于基础价格和随机波动）
+  console.log('所有TradingView数据提取尝试均失败，生成智能模拟数据');
+  const timestamp = Date.now();
+  // 使用时间戳作为种子，使价格在一定时间内相对稳定
+  const seed = Math.floor(timestamp / 300000); // 每5分钟更新一次趋势
+  
   return [
-    { name: 'Bitcoin', symbol: 'BTC', large: 'https://assets.coingecko.com/coins/images/1/large/bitcoin.png', data: { price: 68000, price_change_percentage_24h: { usd: 1.23 } } },
-    { name: 'Ethereum', symbol: 'ETH', large: 'https://assets.coingecko.com/coins/images/279/large/ethereum.png', data: { price: 3500, price_change_percentage_24h: { usd: -0.85 } } },
-    { name: 'Solana', symbol: 'SOL', large: 'https://assets.coingecko.com/coins/images/4128/large/Solana.png', data: { price: 160, price_change_percentage_24h: { usd: 2.5 } } },
-    { name: 'BNB', symbol: 'BNB', large: 'https://assets.coingecko.com/coins/images/825/large/bnb-icon2_2x.png', data: { price: 600, price_change_percentage_24h: { usd: 0.4 } } }
+    {
+      name: 'Bitcoin',
+      symbol: 'BTC',
+      large: 'https://assets.coingecko.com/coins/images/1/large/bitcoin.png',
+      data: {
+        // 使用正弦函数模拟价格波动趋势
+        price: basePrices.btc * (1 + 0.02 * Math.sin(seed * 0.1)),
+        price_change_percentage_24h: { usd: 2 * Math.sin(seed * 0.05) }
+      }
+    },
+    {
+      name: 'Ethereum',
+      symbol: 'ETH',
+      large: 'https://assets.coingecko.com/coins/images/279/large/ethereum.png',
+      data: {
+        price: basePrices.eth * (1 + 0.03 * Math.sin(seed * 0.12)),
+        price_change_percentage_24h: { usd: 2.5 * Math.sin(seed * 0.06) }
+      }
+    },
+    {
+      name: 'Solana',
+      symbol: 'SOL',
+      large: 'https://assets.coingecko.com/coins/images/4128/large/Solana.png',
+      data: {
+        price: basePrices.sol * (1 + 0.05 * Math.sin(seed * 0.15)),
+        price_change_percentage_24h: { usd: 3 * Math.sin(seed * 0.08) }
+      }
+    },
+    {
+      name: 'BNB',
+      symbol: 'BNB',
+      large: 'https://assets.coingecko.com/coins/images/825/large/bnb-icon2_2x.png',
+      data: {
+        price: basePrices.bnb * (1 + 0.02 * Math.sin(seed * 0.08)),
+        price_change_percentage_24h: { usd: 1.5 * Math.sin(seed * 0.04) }
+      }
+    }
   ].map(x => ({ id: x.symbol, ...x }));
+}
+
+// 带重试机制的TradingView数据提取函数
+function extractDataFromTradingViewWithRetry(maxAttempts = 3, retryDelay = 500) {
+  let attempts = 0;
+  let result = null;
+  
+  while (attempts < maxAttempts && !result) {
+    attempts++;
+    
+    try {
+      // 在控制台记录当前尝试
+      if (attempts > 1) {
+        console.log(`尝试从TradingView提取数据 (尝试 ${attempts}/${maxAttempts})`);
+      }
+      
+      result = extractDataFromTradingView();
+      
+      // 如果成功提取到数据，返回结果
+      if (result && Object.keys(result).length > 0) {
+        return result;
+      }
+      
+      // 如果未成功且还有尝试次数，等待一段时间
+      if (attempts < maxAttempts) {
+        // 使用同步方式等待（在非UI阻塞的情况下）
+        const startTime = Date.now();
+        while (Date.now() - startTime < retryDelay) {
+          // 空循环等待，避免过多的异步操作
+        }
+      }
+    } catch (e) {
+      console.error(`从TradingView提取数据时出错（尝试 ${attempts}）:`, e);
+    }
+  }
+  
+  console.log(`TradingView数据提取失败（尝试了${attempts}次）`);
+  return null;
+}
+
+// 尝试从TradingView的ticker组件提取数据 - 增强版
+function extractDataFromTradingView() {
+  try {
+    // 策略1: 尝试从TradingView ticker组件直接提取
+    let result = tryExtractFromTicker();
+    if (result && Object.keys(result).length > 0) {
+      console.log('策略1成功: 从TradingView ticker提取数据');
+      return result;
+    }
+    
+    // 策略2: 尝试从TradingView图表组件提取BTC价格
+    result = tryExtractFromChart();
+    if (result && Object.keys(result).length > 0) {
+      console.log('策略2成功: 从TradingView图表提取数据');
+      return result;
+    }
+    
+    // 策略3: 尝试从页面上所有可能包含加密货币价格的元素中提取
+    result = tryExtractFromAllElements();
+    if (result && Object.keys(result).length > 0) {
+      console.log('策略3成功: 从页面元素中提取数据');
+      return result;
+    }
+    
+    console.log('所有数据提取策略均失败');
+  } catch (e) {
+    console.error('从TradingView提取数据时发生异常:', e);
+  }
+  
+  return null;
+}
+
+// 策略1: 尝试从TradingView ticker组件直接提取
+function tryExtractFromTicker() {
+  const result = {};
+  
+  // 定义多种可能的选择器模式
+  const selectorPatterns = [
+    { price: '[class*="ticker"][class*="item"] [class*="value"]', change: '[class*="ticker"][class*="item"] [class*="change"]' },
+    { price: '[data-symbol*="BTC"] [class*="price"]', change: '[data-symbol*="BTC"] [class*="change"]' },
+    { price: '.tv-ticker [class*="value"]', change: '.tv-ticker [class*="change"]' }
+  ];
+  
+  for (const pattern of selectorPatterns) {
+    const priceElements = document.querySelectorAll(pattern.price);
+    const changeElements = document.querySelectorAll(pattern.change);
+    
+    if (priceElements.length >= 1 && changeElements.length >= 1) {
+      // 提取找到的第一个BTC价格和变化率
+      const priceText = priceElements[0]?.textContent || '';
+      const changeText = changeElements[0]?.textContent || '';
+      
+      // 价格格式可能不同，尝试多种解析方式
+      const price = parsePrice(priceText);
+      const change = parseChange(changeText);
+      
+      if (price > 0) {
+        // 如果找到了BTC价格，至少返回BTC数据
+        result.btc = { price: price, change24h: change };
+        // 尝试提取其他币种数据
+        if (priceElements.length >= 2 && changeElements.length >= 2) {
+          result.eth = { price: parsePrice(priceElements[1]?.textContent || ''), change24h: parseChange(changeElements[1]?.textContent || '') };
+        }
+        if (priceElements.length >= 3 && changeElements.length >= 3) {
+          result.sol = { price: parsePrice(priceElements[2]?.textContent || ''), change24h: parseChange(changeElements[2]?.textContent || '') };
+        }
+        if (priceElements.length >= 4 && changeElements.length >= 4) {
+          result.bnb = { price: parsePrice(priceElements[3]?.textContent || ''), change24h: parseChange(changeElements[3]?.textContent || '') };
+        }
+        
+        // 过滤掉无效数据
+        Object.keys(result).forEach(key => {
+          if (result[key].price <= 0) {
+            delete result[key];
+          }
+        });
+        
+        return result;
+      }
+    }
+  }
+  
+  return null;
+}
+
+// 策略2: 尝试从TradingView图表组件提取BTC价格
+function tryExtractFromChart() {
+  const result = {};
+  
+  // 查找可能包含BTC价格的元素
+  const chartContainers = document.querySelectorAll('.tv-chart, [class*="chart-container"]');
+  if (chartContainers.length > 0) {
+    for (const container of chartContainers) {
+      // 查找容器内所有文本节点
+      const allText = container.innerText;
+      // 尝试匹配价格模式 (如: $68,000.00 或 68000.00 USD)
+      const priceMatch = allText.match(/\$?\s*(\d{1,3}(?:,?\d{3})*(?:\.\d{2})?)\s*USD?/i);
+      if (priceMatch && priceMatch[1]) {
+        const price = parseFloat(priceMatch[1].replace(/,/g, ''));
+        if (price > 1000) { // BTC价格不太可能低于1000
+          result.btc = { price: price, change24h: 0 };
+          return result;
+        }
+      }
+    }
+  }
+  
+  return null;
+}
+
+// 策略3: 尝试从页面上所有可能包含加密货币价格的元素中提取
+function tryExtractFromAllElements() {
+  const result = {};
+  
+  // 查找所有包含BTC、ETH、SOL、BNB文本的元素
+  const cryptoKeywords = ['BTC', 'ETH', 'SOL', 'BNB'];
+  
+  cryptoKeywords.forEach((keyword, index) => {
+    const elements = document.querySelectorAll(`[class*="${keyword.toLowerCase()}"], [id*="${keyword.toLowerCase()}"], [data-symbol*="${keyword}"]`);
+    
+    for (const element of elements) {
+      const text = element.innerText;
+      // 尝试从相邻元素或父元素中查找价格
+      const parentText = element.parentElement?.innerText || '';
+      const siblingText = Array.from(element.parentElement?.children || [])
+        .map(el => el.innerText)
+        .join(' ');
+      
+      const combinedText = `${text} ${parentText} ${siblingText}`;
+      const price = parsePrice(combinedText);
+      const change = parseChange(combinedText);
+      
+      if (price > 0) {
+        const symbol = keyword.toLowerCase();
+        result[symbol] = { price: price, change24h: change };
+        // 对于每个关键词，找到一个有效价格就足够了
+        break;
+      }
+    }
+  });
+  
+  return Object.keys(result).length > 0 ? result : null;
+}
+
+// 解析价格文本的辅助函数
+function parsePrice(text) {
+  if (!text) return 0;
+  
+  // 尝试多种价格格式: $68,000.00, 68000.00, 68k USD等
+  const pricePatterns = [
+    /\$?\s*(\d{1,3}(?:,?\d{3})*(?:\.\d{2})?)\s*USD?/i,  // $68,000.00 或 68000.00 USD
+    /(\d{1,3}(?:,?\d{3})*(?:\.\d{2})?)\s*\$/i,          // 68,000.00 $
+    /(\d{1,3}(?:,?\d{3})*(?:\.\d{2})?)\s*(?:usd)?\b/i,   // 68,000.00 或 68,000.00 usd
+    /\b(\d{4,})\b/                                        // 至少4位数字（加密货币价格通常较高）
+  ];
+  
+  for (const pattern of pricePatterns) {
+    const match = text.match(pattern);
+    if (match && match[1]) {
+      const price = parseFloat(match[1].replace(/,/g, ''));
+      if (price > 0) {
+        return price;
+      }
+    }
+  }
+  
+  return 0;
+}
+
+// 解析24小时变化率的辅助函数
+function parseChange(text) {
+  if (!text) return 0;
+  
+  // 尝试多种变化率格式: +1.23%, -0.85%, 1.23%等
+  const changePattern = /([+-]?\d+(?:\.\d{1,2})?)%/;
+  const match = text.match(changePattern);
+  
+  if (match && match[1]) {
+    return parseFloat(match[1]);
+  }
+  
+  return 0;
+}
+
+// 保持向后兼容
+function getDemoTrending() {
+  return getSmartDemoTrending();
 }
 
 function getDemoNews() {
