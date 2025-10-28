@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>oyix - 币圈资讯与实时行情</title>
+    <meta name="description" content="oyix 提供币圈资讯、热门加密币榜单与实时行情，点击注册加入加密世界。">
+    <meta name="keywords" content="oyix, 币圈资讯, 加密货币, 实时行情, 比特币, 以太坊, Web3">
+    <meta property="og:title" content="oyix - 币圈资讯与实时行情">
+    <meta property="og:description" content="热门加密币、实时行情与精选资讯。">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://your-domain.example/">
+    <meta property="og:image" content="assets/og.png">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <link rel="icon" href="assets/favicon.png">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div class="bg-gradient"></div>
+    <div class="bg-grid"></div>
+    <canvas id="bg-stars"></canvas>
+    <header class="site-header">
+      <div class="container">
+        <a class="brand" href="/">oyix</a>
+        <nav class="nav">
+          <a href="#trending"><i class="ri-fire-line"></i> 热门</a>
+          <a href="#markets"><i class="ri-line-chart-line"></i> 行情</a>
+          <a href="#news"><i class="ri-newspaper-line"></i> 资讯</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero" aria-label="引导注册">
+        <div class="container">
+          <div class="hero-inner glass">
+            <div class="hero-badges">
+              <span class="badge"><i class="ri-time-line"></i> 实时行情</span>
+              <span class="badge"><i class="ri-shield-check-line"></i> 非官方·信息聚合</span>
+              <span class="badge"><i class="ri-flashlight-line"></i> 热点快讯</span>
+            </div>
+            <h1>进入加密世界，从 <span class="brand-text">oyix</span> 开始</h1>
+            <p class="subtitle">未来感情报面板 · 热门币追踪 · 一键注册上手</p>
+            <div class="cta-group">
+              <a id="cta-register" class="btn btn-primary glow" href="#" rel="nofollow noopener" target="_blank"><i class="ri-rocket-line"></i> 立即注册</a>
+              <a href="#trending" class="btn btn-ghost"><i class="ri-compass-3-line"></i> 先看看</a>
+            </div>
+            <p class="disclaimer">本网站与任何交易所无直接关联。页面含合作邀请链接。</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="trending" class="section">
+        <div class="container">
+          <h2><i class="ri-fire-line"></i> 热门加密币</h2>
+          <ul id="trending-list" class="cards"></ul>
+        </div>
+      </section>
+
+      <section id="markets" class="section">
+        <div class="container">
+          <h2><i class="ri-line-chart-line"></i> 实时行情</h2>
+          <div class="tv-ticker"></div>
+        </div>
+      </section>
+
+      <section id="btc-chart" class="section">
+        <div class="container">
+          <h2><i class="ri-line-chart-line"></i> BTC/USDT</h2>
+          <div class="tv-chart" style="margin-top:14px;"></div>
+        </div>
+      </section>
+
+      <section id="news" class="section">
+        <div class="container">
+          <h2><i class="ri-newspaper-line"></i> 资讯速览</h2>
+          <ul id="news-list" class="news"></ul>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container">
+        <p>© <span id="year"></span> oyix · 声明：不提供投资建议</p>
+      </div>
+    </footer>
+
+    <script src="script.js" defer></script>
+  </body>
+</html>
+
+
