@@ -1,5 +1,6 @@
 const INVITE_URL = 'https://www.gtohfmmy.com/join/52900164';
-const IS_DEMO_MODE = typeof location !== 'undefined' && location.protocol === 'file:'; // 直接打开 index.html 时启用
+const IS_DEMO_MODE = typeof location !== 'undefined' && (location.protocol === 'file:' || !location.hostname.includes('github.io')); // 直接打开或非GitHub Pages域名时启用
+const CORS_PROXY = 'https://cors-anywhere.herokuapp.com/'; // CORS代理服务，用于GitHub Pages环境
 
 document.addEventListener('DOMContentLoaded', () => {
   const yearEl = document.getElementById('year');
@@ -44,8 +45,25 @@ async function loadTrending() {
   try {
     // 实时：固定四个主流币（BTC/ETH/SOL/BNB）
     const ids = ['bitcoin','ethereum','solana','binancecoin'];
-    const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids.join(',')}&order=market_cap_desc&per_page=4&page=1&price_change_percentage=24h`;
-    const res = await fetch(url);
+    const apiUrl = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids.join(',')}&order=market_cap_desc&per_page=4&page=1&price_change_percentage=24h`;
+    // 检查是否在GitHub Pages环境，如果是则使用CORS代理
+    const isGitHubPages = typeof location !== 'undefined' && location.hostname.includes('github.io');
+    const url = isGitHubPages ? CORS_PROXY + apiUrl : apiUrl;
+    
+    // 设置合理的fetch选项，包含超时处理
+    const fetchOptions = {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      timeout: 10000 // 10秒超时
+    };
+    
+    const res = await Promise.race([
+      fetch(url, fetchOptions),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Request timeout')), 10000))
+    ]);
     const data = await res.json();
     list.innerHTML = data.map((item) => renderMarketCoin(item)).join('');
     // 渲染后统一将卡片内链接指向邀请
@@ -121,7 +139,10 @@ async function refreshTrendingPrices() {
     .filter(Boolean);
   if (ids.length === 0) return;
   const uniqIds = Array.from(new Set(ids));
-  const url = `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(uniqIds.join(','))}&vs_currencies=usd&include_24hr_change=true`;
+  const apiUrl = `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(uniqIds.join(','))}&vs_currencies=usd&include_24hr_change=true`;
+    // 检查是否在GitHub Pages环境，如果是则使用CORS代理
+    const isGitHubPages = typeof location !== 'undefined' && location.hostname.includes('github.io');
+    const url = isGitHubPages ? CORS_PROXY + apiUrl : apiUrl;
   try {
     const res = await fetch(url);
     const data = await res.json();
@@ -161,8 +182,21 @@ async function loadNews() {
     'https://cointelegraph.com/rss'
   ];
   try {
+    // 检查是否在GitHub Pages环境，如果是则使用CORS代理
+    const isGitHubPages = typeof location !== 'undefined' && location.hostname.includes('github.io');
+    const crosProxyUrl = isGitHubPages ? CORS_PROXY : '';
+    
     const fetched = await Promise.allSettled(
-      sources.map(src => fetch(`https://r.jina.ai/${src}`))
+      sources.map(src => {
+        const fetchUrl = `${crosProxyUrl}https://r.jina.ai/${src}`;
+        return fetch(fetchUrl, {
+          timeout: 10000,
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+          }
+        });
+      })
     );
     const texts = await Promise.all(
       fetched.filter(x => x.status === 'fulfilled').map(x => x.value.text())
