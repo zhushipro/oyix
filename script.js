@@ -1,6 +1,30 @@
 const INVITE_URL = 'https://www.gtohfmmy.com/join/52900164';
-const IS_DEMO_MODE = typeof location !== 'undefined' && (location.protocol === 'file:' || !location.hostname.includes('github.io')); // 直接打开或非GitHub Pages域名时启用
-const CORS_PROXY = 'https://cors-anywhere.herokuapp.com/'; // CORS代理服务，用于GitHub Pages环境
+// 环境检测：本地文件协议、非GitHub Pages域名或IP地址访问时启用
+const IS_DEMO_MODE = typeof location !== 'undefined' && 
+  (location.protocol === 'file:' || 
+   !location.hostname.includes('github.io') || 
+   /^(localhost|127\.0\.0\.1|0\.0\.0\.0|\d+\.\d+\.\d+\.\d+)$/.test(location.hostname));
+
+// 多CORS代理备选方案，提高稳定性
+const CORS_PROXIES = [
+  'https://cors-anywhere.herokuapp.com/',
+  'https://api.allorigins.win/raw?url=',
+  'https://cors-proxy.htmldriven.com/?url='
+];
+
+// 当前使用的代理索引
+let currentProxyIndex = 0;
+
+// 获取当前可用的CORS代理
+function getCurrentCORSProxy() {
+  return CORS_PROXIES[currentProxyIndex];
+}
+
+// 切换到下一个CORS代理
+function switchToNextProxy() {
+  currentProxyIndex = (currentProxyIndex + 1) % CORS_PROXIES.length;
+  console.log(`切换到备用CORS代理: ${getCurrentCORSProxy()}`);
+}
 
 document.addEventListener('DOMContentLoaded', () => {
   const yearEl = document.getElementById('year');
@@ -37,32 +61,76 @@ document.addEventListener('DOMContentLoaded', () => {
   setInterval(() => { refreshTrendingPrices(); }, 10000);
 });
 
+// 尝试使用指定的代理获取数据
+async function fetchWithProxy(apiUrl, maxRetries = 3) {
+  let retries = 0;
+  while (retries < maxRetries) {
+    try {
+      // 检查是否在GitHub Pages环境或需要代理的环境
+      const needsProxy = typeof location !== 'undefined' && 
+        (location.hostname.includes('github.io') || 
+         /^(localhost|127\.0\.0\.1|0\.0\.0\.0|\d+\.\d+\.\d+\.\d+)$/.test(location.hostname));
+      
+      let url = apiUrl;
+      if (needsProxy) {
+        const proxy = getCurrentCORSProxy();
+        url = proxy + encodeURIComponent(apiUrl);
+        console.log(`使用代理${proxy}访问: ${apiUrl}`);
+      } else {
+        console.log(`直接访问: ${apiUrl}`);
+      }
+      
+      // 设置合理的fetch选项，包含超时处理
+      const fetchOptions = {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        credentials: 'omit', // 不发送凭证，减少跨域问题
+        timeout: 10000 // 10秒超时
+      };
+      
+      const res = await Promise.race([
+        fetch(url, fetchOptions),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Request timeout')), 10000))
+      ]);
+      
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      
+      const data = await res.json();
+      return data;
+    } catch (e) {
+      retries++;
+      console.warn(`尝试 ${retries} 失败:`, e.message);
+      
+      // 如果还有重试次数，切换到下一个代理
+      if (retries < maxRetries) {
+        switchToNextProxy();
+        // 每次重试前等待一段时间，避免频繁请求
+        await new Promise(resolve => setTimeout(resolve, 1000 * retries));
+      } else {
+        // 所有重试都失败了
+        throw e;
+      }
+    }
+  }
+}
+
 async function loadTrending() {
   const list = document.getElementById('trending-list');
   if (!list) return;
+  
   try {
     // 实时：固定四个主流币（BTC/ETH/SOL/BNB）
     const ids = ['bitcoin','ethereum','solana','binancecoin'];
     const apiUrl = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids.join(',')}&order=market_cap_desc&per_page=4&page=1&price_change_percentage=24h`;
-    // 检查是否在GitHub Pages环境，如果是则使用CORS代理
-    const isGitHubPages = typeof location !== 'undefined' && location.hostname.includes('github.io');
-    const url = isGitHubPages ? CORS_PROXY + apiUrl : apiUrl;
     
-    // 设置合理的fetch选项，包含超时处理
-    const fetchOptions = {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest'
-      },
-      timeout: 10000 // 10秒超时
-    };
+    // 尝试使用代理获取数据，最多重试3次
+    const data = await fetchWithProxy(apiUrl);
     
-    const res = await Promise.race([
-      fetch(url, fetchOptions),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Request timeout')), 10000))
-    ]);
-    const data = await res.json();
     list.innerHTML = data.map((item) => renderMarketCoin(item)).join('');
     // 渲染后统一将卡片内链接指向邀请
     for (const a of list.querySelectorAll('a')) {
@@ -77,8 +145,17 @@ async function loadTrending() {
       const id = span?.getAttribute('data-id');
       if (id) li.dataset.coinId = id;
     });
+    
+    console.log('热门加密币数据加载成功');
   } catch (e) {
-    console.error('loadTrending failed:', e);
+    console.error('loadTrending 所有尝试都失败:', e);
+    
+    // 如果在GitHub Pages环境下失败，提供更友好的模拟数据
+    const isGitHubPages = typeof location !== 'undefined' && location.hostname.includes('github.io');
+    if (isGitHubPages) {
+      console.log('在GitHub Pages环境下使用本地缓存的模拟数据');
+    }
+    
     const demo = getDemoTrending();
     list.innerHTML = demo.map(item => renderCoin(item)).join('');
     for (const a of list.querySelectorAll('a')) {
@@ -137,13 +214,13 @@ async function refreshTrendingPrices() {
     .filter(Boolean);
   if (ids.length === 0) return;
   const uniqIds = Array.from(new Set(ids));
-  const apiUrl = `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(uniqIds.join(','))}&vs_currencies=usd&include_24hr_change=true`;
-    // 检查是否在GitHub Pages环境，如果是则使用CORS代理
-    const isGitHubPages = typeof location !== 'undefined' && location.hostname.includes('github.io');
-    const url = isGitHubPages ? CORS_PROXY + apiUrl : apiUrl;
+  
   try {
-    const res = await fetch(url);
-    const data = await res.json();
+    const apiUrl = `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(uniqIds.join(','))}&vs_currencies=usd&include_24hr_change=true`;
+    
+    // 尝试使用代理获取数据，但只重试1次以避免频繁请求
+    const data = await fetchWithProxy(apiUrl, 1);
+    
     for (const id of uniqIds) {
       const priceEl = list.querySelector(`.price-value[data-id="${id}"]`);
       const chgEl = list.querySelector(`.chg-value[data-id="${id}"]`);
