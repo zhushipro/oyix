@@ -13,13 +13,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const allLinks = Array.from(document.querySelectorAll('a'));
   for (const a of allLinks) {
     const inNews = a.closest('#news') || a.closest('#news-list');
-    // 资讯链接改为跳邀请
+    // 保留资讯区域原始链接
     if (inNews) {
-      a.href = INVITE_URL;
-      a.target = '_blank';
-      a.rel = 'nofollow noopener';
       continue;
     }
+    // 非资讯区域链接改为跳邀请
     a.href = INVITE_URL;
     a.target = '_blank';
     a.rel = 'nofollow noopener';
